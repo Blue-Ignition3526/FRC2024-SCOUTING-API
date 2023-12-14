@@ -50,5 +50,9 @@ def checkMongo():
 def addMatch():
     return api.addMatch(request.json)
 
+@app.route('/matches/add-multiple-matches', methods=['POST'])
+def addMultipleMatches():
+    return api.addMultipleMatches(request.json)
+
 if __name__ == '__main__':
     app.run(debug=True)

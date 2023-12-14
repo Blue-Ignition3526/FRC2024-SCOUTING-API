@@ -118,7 +118,7 @@ class Api:
             teamNumber = body['d'][1]
             if self.db.Matches.count_documents({'matchNumber': matchNumber, 'teamNumber': teamNumber}, limit=1):
                 return jsonify({'error': f'{teamNumber}\'s match {matchNumber} already exists'}), 400
-            result = self.db.Matches.insert_one(self.dataBuilder.data(body['d']))
+            result = self.db.Matches.insert_one(self.dataBuilder.data(body[d]))
             if result.acknowledged:
                 return jsonify({'message': f'{teamNumber}\'s match {matchNumber} succesfully added'}), 201
             else:
@@ -126,8 +126,23 @@ class Api:
         except Exception as e:
             return jsonify({'error': 'Match could not be added'}), 500
 
-    def addMatches(self, matches):
-        return True
+    def addMultipleMatches(self, matchesData):
+        if not self.apiStatus:
+            return jsonify({'error': 'API is disabled'}), 400
+        try:
+            matches = matchesData["d"]
+            for match in matches:
+                matchNumber = match[0]
+                teamNumber = match[1]
+                if self.db.Matches.count_documents({'matchNumber': matchNumber, 'teamNumber': teamNumber}, limit=1):
+                    return jsonify({'error': f'{teamNumber}\'s match {matchNumber} already exists'}), 400
+            result = self.db.Matches.insert_many([self.dataBuilder.data(match) for match in matches])
+            if result.acknowledged:
+                return jsonify({'message': f'{len(result.inserted_ids)} matches succesfully added'}), 201
+            else:
+                return jsonify({'error': 'Matches could not be added'}), 500
+        except Exception as e:
+            return jsonify({'error': 'Matches could not be added'}), 500
 
     def updateTeamMatch(self, identifier, matchData):
         return True
