@@ -1,6 +1,7 @@
 from dotenv import load_dotenv
 import os
 from connection import MongoConnection
+from matchDataBuilder import DataBuilder
 from flask import jsonify
 import requests
 
@@ -11,6 +12,9 @@ class Api:
         self.mongo = MongoConnection()
         self.mongo.test()
         self.db = self.mongo.db
+
+        # Setup data builder
+        self.dataBuilder = DataBuilder()
 
         # Setup TBA key
         load_dotenv()
@@ -24,11 +28,11 @@ class Api:
 
     def enable(self):
         self.apiStatus = True
-        return jsonify({'message': 'API enabled'}), 200
+        return jsonify({'message': 'API enabled'}), 201
 
     def disable(self):
         self.apiStatus = False
-        return jsonify({'message': 'API disabled'}), 200
+        return jsonify({'message': 'API disabled'}), 201
 
     def checkMongo(self):
         test = self.mongo.test()
@@ -60,7 +64,7 @@ class Api:
 
             if result.acknowledged and result2.acknowledged:  # If MongoDB acknowledged the insertion
                 return jsonify({
-                                   'message': f'Event {eventKey} successfully generated, {len(result.inserted_ids)} teams added'}), 200
+                                   'message': f'Event {eventKey} successfully generated, {len(result.inserted_ids)} teams added'}), 201
             else:
                 return jsonify({'error': f'Event {eventKey} could not be generated'}), 500
 
@@ -79,7 +83,7 @@ class Api:
             result = self.db.Regional.delete_many({})
 
             if result.acknowledged:
-                return jsonify({'message': f'{result.deleted_count} entries removed. Event cleared'}), 200
+                return jsonify({'message': f'{result.deleted_count} entries removed. Event cleared'}), 201
             else:
                 return jsonify({'error': 'Event could not be cleared'}), 500
 
@@ -104,3 +108,32 @@ class Api:
                 return jsonify({'error': 'Event could not be retrieved or does not exist'}), 500
         except Exception as e:
             return jsonify({'error': 'Event could not be retrieved'}), 500
+
+
+    def addMatch(self, body):
+        if not self.apiStatus:
+            return jsonify({'error': 'API is disabled'}), 400
+        try:
+            matchNumber = body['d'][0]
+            teamNumber = body['d'][1]
+            if self.db.Matches.count_documents({'matchNumber': matchNumber, 'teamNumber': teamNumber}, limit=1):
+                return jsonify({'error': f'{teamNumber}\'s match {matchNumber} already exists'}), 400
+            result = self.db.Matches.insert_one(self.dataBuilder.data(body['d']))
+            if result.acknowledged:
+                return jsonify({'message': f'{teamNumber}\'s match {matchNumber} succesfully added'}), 201
+            else:
+                return jsonify({'error': 'Match could not be added'}), 500
+        except Exception as e:
+            return jsonify({'error': 'Match could not be added'}), 500
+
+    def addMatches(self, matches):
+        return True
+
+    def updateTeamMatch(self, identifier, matchData):
+        return True
+
+    def deleteTeamMatch(self, identifier):
+        return True
+
+    def deleteMatchNumber(self, matchNumber):
+        return True

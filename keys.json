@@ -1,0 +1,5 @@
+{
+  "scouters": ["Scouter","Juan","Jorge","Javier"],
+  "starting": ["Over Cable Bumper","Before Cable Bumper","Middle Charge Station","Station Wall"],
+  "preloaded": ["None", "Cone", "Cube"]
+}
