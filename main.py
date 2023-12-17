@@ -1,22 +1,15 @@
-from dotenv import load_dotenv
 from flask import Flask, request
 from api import Api
-import os
-
-load_dotenv()
-tbaKey = os.getenv('TBA_KEY')
+from setup import Setup
 
 app = Flask(__name__)
-
-api = Api()
-
 
 @app.route('/event/generate-event/<eventKey>', methods=['POST'])
 def generateEvent(eventKey):
     return api.generateEvent(eventKey)
 
 
-@app.route('/event/clear-event', methods=['POST'])
+@app.route('/event/clear-event', methods=['DELETE'])
 def clearEvent():
     return api.clearEvent()
 
@@ -54,5 +47,21 @@ def addMatch():
 def addMultipleMatches():
     return api.addMultipleMatches(request.json)
 
+@app.route('/pits/add-robot', methods=['POST'])
+def addRobot():
+    return api.addRobot(request.json)
+
 if __name__ == '__main__':
-    app.run(debug=True)
+    setup = Setup()
+    if setup.checkSetup():
+        api = Api()
+        app.run(debug=True)
+    else:
+        print("Setup not done or missing keys")
+        setup.setupKeys()
+        if setup.setup:
+            print("Setup complete")
+            api = Api()
+            app.run(debug=True)
+        else:
+            print("Setup failed")
