@@ -32,7 +32,7 @@ class DataBuilder:
     def data(self, matchData: list):
         """
         A function that builds the data for the match
-        :param data: A dictionary that contains the data for the match
+        :param matchData: A list that contains the data for the match
         :return: A dictionary that contains the data for the match
         """
         processedData = {

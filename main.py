@@ -11,7 +11,7 @@ def generateEvent(eventKey):
 
 @app.route('/event/clear-event', methods=['DELETE'])
 def clearEvent():
-    return api.clearEvent()
+    return api.clearEvent(request.headers.get('Password'))
 
 
 @app.route('/event/active-event', methods=['GET'])
@@ -29,9 +29,9 @@ def enable():
     return api.enable()
 
 
-@app.route('/server/disable', methods=['POST'])
+@app.route('/server/disable', methods=['DELETE'])
 def disable():
-    return api.disable()
+    return api.disable(request.headers.get('Password'))
 
 
 @app.route('/mongo/status', methods=['GET'])
@@ -43,9 +43,23 @@ def checkMongo():
 def addMatch():
     return api.addMatch(request.json)
 
+
 @app.route('/matches/add-multiple-matches', methods=['POST'])
 def addMultipleMatches():
     return api.addMultipleMatches(request.json)
+
+@app.route('/matches/patch-match/<teamNumber>/<matchNumber>', methods=['PATCH'])
+def patchMatch(teamNumber, matchNumber):
+    return api.patchTeamMatch({'teamNumber': int(teamNumber), 'matchNumber': int(matchNumber)}, request.json, request.headers.get('Password'))
+
+@app.route('/matches/delete-team-match/<teamNumber>/<matchNumber>', methods=['DELETE'])
+def deleteTeamMatch(teamNumber, matchNumber):
+    return api.deleteTeamMatch({'teamNumber': int(teamNumber), 'matchNumber': int(matchNumber)}, request.headers.get('Password'))
+
+@app.route('/matches/delete-match-number/<matchNumber>', methods=['DELETE'])
+def deleteMatchNumber(matchNumber):
+    return api.deleteMatchNumber(int(matchNumber), request.headers.get('Password'))
+
 
 @app.route('/pits/add-robot', methods=['POST'])
 def addRobot():
