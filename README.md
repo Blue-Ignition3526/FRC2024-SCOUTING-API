@@ -1,2 +1,2 @@
-# FRC2024-SCOUTING-SERVER
-Blue Ignition's 2024 data processing server for FRC event scouting
+# FRC2024-SCOUTING-API
+Blue Ignition's 2024 data processing API
