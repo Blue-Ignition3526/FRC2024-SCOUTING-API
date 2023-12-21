@@ -1,7 +1,8 @@
 from dotenv import load_dotenv
 import os
 from connection import MongoConnection
-from matchDataBuilder import DataBuilder
+from matchDataBuilder import matchDataBuilder
+from pitsDataBuilder import pitsDataBuilder
 from flask import jsonify
 import requests
 
@@ -14,7 +15,8 @@ class Api:
         self.db = self.mongo.db
 
         # Setup data builder
-        self.dataBuilder = DataBuilder()
+        self.dataBuilder = matchDataBuilder()
+        self.pitsDataBuilder = pitsDataBuilder()
 
         # Setup TBA key
         load_dotenv()
@@ -103,8 +105,7 @@ class Api:
             result2 = self.db.Teams.insert_many(teams)  # Insert the teams into the Teams collection
 
             if result.acknowledged and result2.acknowledged:  # If MongoDB acknowledged the insertion
-                return jsonify({
-                                   'message': f'Event {eventKey} successfully generated, {len(result.inserted_ids)} teams added', 'success': True}), 201
+                return jsonify({'message': f'Event {eventKey} successfully generated, #{len(result.inserted_ids)} teams added', 'success': True}), 201
             else:
                 return jsonify({'error': f'Event {eventKey} could not be generated', 'success': False}), 500
 
@@ -163,20 +164,20 @@ class Api:
             return jsonify({'error': 'Event could not be retrieved', 'success': False}), 500
 
 
-    def addMatch(self, body: dict):
+    def addMatch(self, data: dict):
         """
         A function that adds a match to the Matches Collection
-        :param body: A dictionary that contains the data for the match inside the key 'd', stored as {'d': {matchData}}
+        :param data: A dictionary that contains the data for the match inside the key 'd', stored as {'d': {matchData}}
         :return: A JSON response that contains the result of the operation and the status code
         """
         if not self.apiStatus:
             return jsonify({'error': 'API is disabled', 'success': False}), 400
         try:
-            matchNumber = body['d'][0]
-            teamNumber = body['d'][1]
+            matchNumber = data['d'][0]
+            teamNumber = data['d'][1]
             if self.db.Matches.count_documents({'matchNumber': matchNumber, 'teamNumber': teamNumber}, limit=1):
                 return jsonify({'error': f'{teamNumber}\'s match {matchNumber} already exists', 'success': False}), 400
-            result = self.db.Matches.insert_one(self.dataBuilder.data(body['d']))
+            result = self.db.Matches.insert_one(self.dataBuilder.data(data['d']))
             if result.acknowledged:
                 return jsonify({'message': f'{teamNumber}\'s match {matchNumber} successfully added', 'success': True}), 201
             else:
@@ -233,6 +234,31 @@ class Api:
         except Exception as e:
             return jsonify({'error': 'Match could not be updated', 'success': False}), 500
 
+
+    def updateTeamMatch(self, identifier: dict, matchData: dict, password: str):
+        """
+        A function that updates a match, replaces the entire match. Needs the same data as the addMatch function
+        :param identifier: A dictionary that contains the data to uniquely identify the match in this case the team number and the match number {'teamNumber': teamNumber, 'matchNumber': matchNumber}
+        :param matchData: A dictionary that contains the match data inside the key 'd', stored as {'d': {matchData}}
+        :param password: The password previously set in the setup, stored in the .env file. Grants access to delete and update functions
+        :return: A JSON response that contains the result of the operation and the status code
+        """
+        if not self.checkPassword(password):
+            return jsonify({'error': 'Invalid password', 'success': False}), 400
+        if not self.apiStatus:
+            return jsonify({'error': 'API is disabled', 'success': False}), 400
+        try:
+            result = self.db.Matches.replace_one(identifier, {matchData['d']})
+            if result.matched_count > 0 and result.modified_count > 0:
+                return jsonify({'message': f'Match successfully updated', 'success': True}), 201
+            else:
+                if result.matched_count == 0:
+                    return jsonify({'error': 'Match could not be found', 'success': False}), 400
+                if result.modified_count == 0:
+                    return jsonify({'error': 'Match could not be updated', 'success': False}), 500
+        except Exception as e:
+            return jsonify({'error': 'Match could not be updated', 'success': False}), 500
+
     def deleteTeamMatch(self, identifier: dict, password: str):
         """
         A function that deletes a match
@@ -273,19 +299,83 @@ class Api:
         except Exception as e:
             return jsonify({'error': 'Matches could not be deleted', 'success': False}), 500
 
-    def addRobot(self, body):
+
+    def getMatch(self, identifier: dict):
+        """
+        A function that returns a match
+        :param identifier: A dictionary that contains the data to uniquely identify the match in this case the team number and the match number {'teamNumber': teamNumber, 'matchNumber': matchNumber}
+        :return: A JSON response that contains the match or error code and the status code
+        """
+        if not self.apiStatus:
+            return jsonify({'error': 'API is disabled', 'success': False}), 400
+        try:
+            match = self.db.Matches.find_one(identifier)
+            match['_id'] = str(match['_id'])
+
+            if match:
+                return jsonify({'match': match,'success': True}), 200
+            else:
+                return jsonify({'error': 'Match could not be retrieved or does not exist', 'success': False}), 500
+        except Exception as e:
+            return jsonify({'error': 'Match could not be retrieved', 'success': False}), 500
+
+
+    def getMultipleMatches(self, identifier: dict):
+        """
+        A function that returns multiple matches
+        :param identifier: A dictionary that contains the data to identify the matches  {'key1': value, 'key2': value, ...}
+        :return: A JSON response that contains the matches or error code and the status code
+        """
+        if not self.apiStatus:
+            return jsonify({'error': 'API is disabled', 'success': False}), 400
+        try:
+            matches = self.db.Matches.find(identifier)
+            matchesList = []
+            for match in matches:
+                match['_id'] = str(match['_id'])
+                matchesList.append(match)
+
+            if matchesList:
+                return jsonify({'matches': matchesList, 'success': True}), 200
+            else:
+                return jsonify({'error': 'Matches could not be retrieved or does not exist', 'success': False}), 500
+        except Exception as e:
+            return jsonify({'error': 'Matches could not be retrieved', 'success': False}), 500
+
+
+    def getAllMatches(self):
+        """
+        A function that returns all the matches
+        :return: A JSON response that contains the matches or error code and the status code
+        """
+        try:
+            matches = self.db.Matches.find({})
+            matchesList = []
+            for match in matches:
+                match['_id'] = str(match['_id'])
+                matchesList.append(match)
+
+            if matchesList:
+                return jsonify({'matches': matchesList, 'success': True}), 200
+            else:
+                return jsonify({'error': 'Matches could not be retrieved or does not exist', 'success': False}), 500
+        except Exception as e:
+            return jsonify({'error': 'Matches could not be retrieved', 'success': False}), 500
+
+
+    def addRobot(self, data: dict):
         """
         A function that adds a robot to the Pits collection
-        :param body: A dictionary that contains the data for the robot inside the key 'd', stored as {'d': {robotData}}
+        :param data: A dictionary that contains the data for the robot inside the key 'd', stored as {'d': {robotData}}
         :return: A JSON response that contains the result of the operation and the status code
         """
         if not self.apiStatus:
             return jsonify({'error': 'API is disabled', 'success': False}), 400
         try:
-            teamNumber = body['d'][0]
+            teamNumber = data['d'][0]
             if self.db.Robots.count_documents({'teamNumber': teamNumber}, limit=1):
                 return jsonify({'error': f'{teamNumber}\'s robot already exists', 'success': False}), 400
-            result = self.db.Pits.insert_one(self.dataBuilder.data(body['d']))
+            result = self.db.Pits.insert_one(self.pitsDataBuilder.data(data['d']))
             if result.acknowledged:
                 return jsonify({'message': f'{teamNumber}\'s robot successfully added', 'success': True}), 201
             else:
@@ -293,3 +383,159 @@ class Api:
         except Exception as e:
             return jsonify({'error': 'Robot could not be added', 'success': False}), 500
 
+
+    def addMultipleRobots(self, robotsData: dict):
+        """
+        A function that adds multiple robots to the Pits collection
+        :param robotsData: A dictionary that contains the data for the robots inside the key 'd', an array of dictionaries is stores, each dictionary represents a robot, stored as {'d': [{robotData1},{robotData2}, ...]}
+        :return: A JSON response that contains the result of the operation and the status code
+        """
+        if not self.apiStatus:
+            return jsonify({'error': 'API is disabled', 'success': False}), 400
+        try:
+            robots = robotsData["d"]
+            for robot in robots:
+                teamNumber = robot[0]
+                if self.db.Robots.count_documents({'teamNumber': teamNumber}, limit=1):
+                    return jsonify({'error': f'{teamNumber}\'s robot already exists', 'success': False}), 400
+            result = self.db.Pits.insert_many([self.pitsDataBuilder.data(robot) for robot in robots])
+            if result.acknowledged:
+                return jsonify({'message': f'{len(result.inserted_ids)} robots successfully added', 'success': True}), 201
+            else:
+                return jsonify({'error': 'Robots could not be added', 'success': False}), 500
+        except Exception as e:
+            return jsonify({'error': 'Robots could not be added', 'success': False}), 500
+
+
+    def patchRobot(self, identifier: dict, robotData: dict, password: str):
+        """
+        A function that patches certain values of a robot
+        :param identifier: A dictionary that contains the data to uniquely identify the robot in this case the team number {'teamNumber': teamNumber}
+        :param robotData: A dictionary that contains the data to be patched, key and value {'key': 'value', ...}
+        :param password: The password previously set in the setup, stored in the .env file. Grants access to delete and update functions
+        :return: A JSON response that contains the result of the operation and the status code
+        """
+        if not self.checkPassword(password):
+            return jsonify({'error': 'Invalid password', 'success': False}), 400
+        if not self.apiStatus:
+            return jsonify({'error': 'API is disabled', 'success': False}), 400
+        try:
+            result = self.db.Pits.update_one(identifier, {"$set": robotData['d']})
+            if result.matched_count > 0 and result.modified_count > 0:
+                return jsonify({'message': f'Robot successfully updated', 'success': True}), 201
+            else:
+                if result.matched_count == 0:
+                    return jsonify({'error': 'Robot could not be found', 'success': False}), 400
+                if result.modified_count == 0:
+                    return jsonify({'error': 'Robot could not be updated', 'success': False}), 500
+        except Exception as e:
+            return jsonify({'error': 'Robot could not be updated', 'success': False}), 500
+
+
+    def updateRobot(self, identifier: dict, robotData: dict, password: str):
+        """
+        A function that updates a robot, replaces the entire robot. Needs the same data as the addRobot function
+        :param identifier: A dictionary that contains the data to uniquely identify the robot in this case the team number {'teamNumber': teamNumber}
+        :param robotData: A dictionary that contains the robot data inside the key 'd', stored as {'d': {robotData}}
+        :param password: The password previously set in the setup, stored in the .env file. Grants access to delete and update functions
+        :return: A JSON response that contains the result of the operation and the status code
+        """
+        if not self.checkPassword(password):
+            return jsonify({'error': 'Invalid password', 'success': False}), 400
+        if not self.apiStatus:
+            return jsonify({'error': 'API is disabled', 'success': False}), 400
+        try:
+            result = self.db.Pits.replace_one(identifier, {robotData['d']})
+            if result.matched_count > 0 and result.modified_count > 0:
+                return jsonify({'message': f'Robot successfully updated', 'success': True}), 201
+            else:
+                if result.matched_count == 0:
+                    return jsonify({'error': 'Robot could not be found', 'success': False}), 400
+                if result.modified_count == 0:
+                    return jsonify({'error': 'Robot could not be updated', 'success': False}), 500
+        except Exception as e:
+            return jsonify({'error': 'Robot could not be updated', 'success': False}), 500
+
+
+    def deleteRobot(self, identifier: dict, password: str):
+        """
+        A function that deletes a robot
+        :param identifier: A dictionary that contains the data to uniquely identify the robot in this case the team number {'teamNumber': teamNumber}
+        :param password: The password previously set in the setup, stored in the .env file. Grants access to delete and update functions
+        :return: A JSON response that contains the result of the operation and the status code
+        """
+        if not self.checkPassword(password):
+            return jsonify({'error': 'Invalid password', 'success': False}), 400
+        if not self.apiStatus:
+            return jsonify({'error': 'API is disabled', 'success': False}), 400
+        try:
+            result = self.db.Pits.delete_one(identifier)
+            if result.deleted_count > 0:
+                return jsonify({'message': f'Robot successfully deleted', 'success': True}), 201
+            else:
+                return jsonify({'error': 'Robot could not be deleted or was not found', 'success': False}), 500
+        except Exception as e:
+            return jsonify({'error': 'Robot could not be deleted', 'success': False}), 500
+
+
+    def getRobot(self, identifier: dict):
+        """
+        A function that returns a robot
+        :param identifier: A dictionary that contains the data to uniquely identify the robot in this case the team number {'teamNumber': teamNumber}
+        :return: A JSON response that contains the robot or error code and the status code
+        """
+        if not self.apiStatus:
+            return jsonify({'error': 'API is disabled', 'success': False}), 400
+        try:
+            robot = self.db.Pits.find_one(identifier)
+            robot['_id'] = str(robot['_id'])
+
+            if robot:
+                return jsonify({'robot': robot,'success': True}), 200
+            else:
+                return jsonify({'error': 'Robot could not be retrieved or does not exist', 'success': False}), 500
+        except Exception as e:
+            return jsonify({'error': 'Robot could not be retrieved', 'success': False}), 500
+
+
+    def getMultipleRobots(self, identifier: dict):
+        """
+        A function that returns multiple robots
+        :param identifier: A dictionary that contains the data to identify the robots  {'key1': value, 'key2': value, ...}
+        :return: A JSON response that contains the robots or error code and the status code
+        """
+        if not self.apiStatus:
+            return jsonify({'error': 'API is disabled', 'success': False}), 400
+        try:
+            robots = self.db.Pits.find(identifier)
+            robotsList = []
+            for robot in robots:
+                robot['_id'] = str(robot['_id'])
+                robotsList.append(robot)
+
+            if robotsList:
+                return jsonify({'robots': robotsList, 'success': True}), 200
+            else:
+                return jsonify({'error': 'Robots could not be retrieved or does not exist', 'success': False}), 500
+        except Exception as e:
+            return jsonify({'error': 'Robots could not be retrieved', 'success': False}), 500
+
+
+    def getAllRobots(self):
+        """
+        A function that returns all the robots
+        :return: A JSON response that contains the robots or error code and the status code
+        """
+        try:
+            robots = self.db.Pits.find({})
+            robotsList = []
+            for robot in robots:
+                robot['_id'] = str(robot['_id'])
+                robotsList.append(robot)
+
+            if robotsList:
+                return jsonify({'robots': robotsList, 'success': True}), 200
+            else:
+                return jsonify({'error': 'Robots could not be retrieved or does not exist', 'success': False}), 500
+        except Exception as e:
+            return jsonify({'error': 'Robots could not be retrieved', 'success': False}), 500

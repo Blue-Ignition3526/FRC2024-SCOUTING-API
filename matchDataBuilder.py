@@ -1,6 +1,6 @@
 import json
 
-class DataBuilder:
+class matchDataBuilder:
     def __init__(self):
         jsonData = open('keys.json', 'r')
         self.keys = json.load(jsonData)

@@ -48,22 +48,80 @@ def addMatch():
 def addMultipleMatches():
     return api.addMultipleMatches(request.json)
 
+
 @app.route('/matches/patch-match/<teamNumber>/<matchNumber>', methods=['PATCH'])
 def patchMatch(teamNumber, matchNumber):
     return api.patchTeamMatch({'teamNumber': int(teamNumber), 'matchNumber': int(matchNumber)}, request.json, request.headers.get('Password'))
 
+
+@app.route('/matches/update-match/<teamNumber>/<matchNumber>', methods=['PUT'])
+def updateMatch(teamNumber, matchNumber):
+    return api.updateTeamMatch({'teamNumber': int(teamNumber), 'matchNumber': int(matchNumber)}, request.json, request.headers.get('Password'))
+
+
 @app.route('/matches/delete-team-match/<teamNumber>/<matchNumber>', methods=['DELETE'])
 def deleteTeamMatch(teamNumber, matchNumber):
     return api.deleteTeamMatch({'teamNumber': int(teamNumber), 'matchNumber': int(matchNumber)}, request.headers.get('Password'))
+
 
 @app.route('/matches/delete-match-number/<matchNumber>', methods=['DELETE'])
 def deleteMatchNumber(matchNumber):
     return api.deleteMatchNumber(int(matchNumber), request.headers.get('Password'))
 
 
+@app.route('/matches/get-match/<teamNumber>/<matchNumber>', methods=['GET'])
+def getMatch(teamNumber, matchNumber):
+    return api.getMatch({'teamNumber': int(teamNumber), 'matchNumber': int(matchNumber)})
+
+
+@app.route('/matches/get-multiple-matches', methods=['GET'])
+def getMultipleMatches():
+    return api.getMultipleMatches(request.json)
+
+
+@app.route('/matches/get-all-matches', methods=['GET'])
+def getAllMatches():
+    return api.getAllMatches()
+
+
 @app.route('/pits/add-robot', methods=['POST'])
 def addRobot():
     return api.addRobot(request.json)
+
+
+@app.route('/pits/add-multiple-robots', methods=['POST'])
+def addMultipleRobots():
+    return api.addMultipleRobots(request.json)
+
+
+@app.route('/pits/patch-robot/<teamNumber>', methods=['PATCH'])
+def patchRobot(teamNumber):
+    return api.patchRobot({'teamNumber': int(teamNumber)}, request.json, request.headers.get('Password'))
+
+
+@app.route('/pits/update-robot/<teamNumber>', methods=['PUT'])
+def updateRobot(teamNumber):
+    return api.updateRobot({'teamNumber': int(teamNumber)}, request.json, request.headers.get('Password'))
+
+
+@app.route('/pits/delete-robot/<teamNumber>', methods=['DELETE'])
+def deleteRobot(teamNumber):
+    return api.deleteRobot({'teamNumber': int(teamNumber)}, request.headers.get('Password'))
+
+
+@app.route('/pits/get-robot/<teamNumber>', methods=['GET'])
+def getRobot(teamNumber):
+    return api.getRobot({'teamNumber': int(teamNumber)})
+
+
+@app.route('/pits/get-multiple-robots', methods=['GET'])
+def getMultipleRobots():
+    return api.getMultipleRobots(request.json)
+
+
+@app.route('/pits/get-all-robots', methods=['GET'])
+def getAllRobots():
+    return api.getAllRobots()
 
 if __name__ == '__main__':
     setup = Setup()
