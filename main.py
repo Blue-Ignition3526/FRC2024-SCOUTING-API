@@ -83,6 +83,10 @@ def getMultipleMatches():
 def getAllMatches():
     return api.getAllMatches()
 
+@app.route('/matches/get-running-match', methods=['GET'])
+def getRunningMatch():
+    return api.getRunningMatch()
+
 
 @app.route('/pits/add-robot', methods=['POST'])
 def addRobot():
@@ -122,6 +126,10 @@ def getMultipleRobots():
 @app.route('/pits/get-all-robots', methods=['GET'])
 def getAllRobots():
     return api.getAllRobots()
+
+@app.route('/teams/get-all-teams', methods=['GET'])
+def getAllTeams():
+    return api.getAllTeams()
 
 if __name__ == '__main__':
     setup = Setup()

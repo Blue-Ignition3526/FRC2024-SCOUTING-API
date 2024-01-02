@@ -25,6 +25,9 @@ class Api:
         # Api variables
         self.apiStatus = True
 
+        # Delete variables
+        self.delAttempts = 0
+
     def status(self):
         """
         A function that returns the status of the API
@@ -94,18 +97,20 @@ class Api:
             event = requests.get(f'https://www.thebluealliance.com/api/v3/event/{eventKey}',
                                  headers={'X-TBA-Auth-Key': self.tbaKey})  # Get the event data from the event
 
+            regional = event.json()  # Get the event data from the request
+            regional['teamCount'] = len(teams.json())  # Add the team count to the event data
+
             body = teams.json()  # Get the teams data from the request
             teams = []  # Create an empty list to store the teams
             for team in body:
-                team['disabled'] = False
-                teams.append({'team_number': team['team_number'], 'team_name': team['nickname']})  # Append the team data to the teams list
-            body.append(event.json())  # Append the event data to the teams data
+                teams.append({'team_number': team['team_number'], 'team_name': team['nickname'], 'team_value': 0.00})  # Append the team data to the teams list
+            body.append(regional)  # Append the event data to the teams data
 
             result = self.db.Regional.insert_many(body)  # Insert the data into the Regional collection
             result2 = self.db.Teams.insert_many(teams)  # Insert the teams into the Teams collection
 
             if result.acknowledged and result2.acknowledged:  # If MongoDB acknowledged the insertion
-                return jsonify({'message': f'Event {eventKey} successfully generated, #{len(result.inserted_ids)} teams added', 'success': True}), 201
+                return jsonify({'message': f'Event {eventKey} successfully generated, #{len(result2.inserted_ids)} teams added', 'success': True}), 201
             else:
                 return jsonify({'error': f'Event {eventKey} could not be generated', 'success': False}), 500
 
@@ -123,16 +128,23 @@ class Api:
             return jsonify({'error': 'Invalid password', 'success': False}), 400
         if not self.apiStatus:
             return jsonify({'error': 'API is disabled', 'success': False}), 400
+        if self.delAttempts == 0:
+            self.delAttempts += 1
+            return jsonify({'message': 'Are you sure you want to clear the event? This action cannot be undone. Send the request again to confirm', 'success': True, 'tryAgain': True}), 200
         try:
             # Check if there is an entry in the Regional collection
             if not self.db.Regional.count_documents({}, limit=1):
                 # If there isn't, deny the request for clearing the event
                 return jsonify({'error': 'No event on progress, Invalid action', 'success': False}), 400
 
-            result = self.db.Regional.delete_many({})
-
-            if result.acknowledged:
-                return jsonify({'message': f'{result.deleted_count} entries removed. Event cleared', 'success': True}), 201
+            regional = self.db.Regional.delete_many({})
+            teams = self.db.Teams.delete_many({})
+            # !TODO Enable the following deletes for production
+            # matches = self.db.Matches.delete_many({})
+            # pits = self.db.Pits.delete_many({})
+            self.delAttempts = 0
+            if regional.acknowledged:
+                return jsonify({'message': f'{regional.deleted_count + teams.deleted_count} entries removed. Event cleared', 'success': True}), 201
             else:
                 return jsonify({'error': 'Event could not be cleared', 'success': False}), 500
 
@@ -526,6 +538,8 @@ class Api:
         A function that returns all the robots
         :return: A JSON response that contains the robots or error code and the status code
         """
+        if not self.apiStatus:
+            return jsonify({'error': 'API is disabled', 'success': False}), 400
         try:
             robots = self.db.Pits.find({})
             robotsList = []
@@ -539,3 +553,50 @@ class Api:
                 return jsonify({'error': 'Robots could not be retrieved or does not exist', 'success': False}), 500
         except Exception as e:
             return jsonify({'error': 'Robots could not be retrieved', 'success': False}), 500
+
+    # !TODO Change the function to be get completedMatches. Have the matches be sorted by timestamp in order to account for skipped matches. Also get the total amount of matches
+    # https://www.thebluealliance.com/api/v3/event/2023mxmo/matches/simple
+    def getRunningMatch(self):
+        """
+        A function that returns the running match
+        :return: A JSON response that contains the running match or error code and the status code
+        """
+        if not self.apiStatus:
+            return jsonify({'error': 'API is disabled', 'success': False}), 400
+        try:
+            pipeline = [
+                {"$group": {"_id": "$matchNumber", "count": {"$sum": 1}}},
+                {"$sort": {"_id": -1}},
+                {"$limit": 1}
+            ]
+
+            result = self.db.Matches.aggregate(pipeline).next()
+            if result:
+                if result['count'] >= 3:
+                    return jsonify({'matchNumber': result['_id']+1, 'success': True}), 200
+                else:
+                    return jsonify({'matchNumber': result['_id'], 'success': True}), 200
+            else:
+                return jsonify({'error': 'Match could not be retrieved or does not exist', 'success': False}), 500
+        except Exception as e:
+            return jsonify({'error': 'Match could not be retrieved', 'success': False}), 500
+
+
+    def getAllTeams (self):
+        """
+        A function that returns all the teams
+        :return: A JSON response that contains the teams or error code and the status code
+        """
+        try:
+            teams = self.db.Teams.find({})
+            teamsList = []
+            for team in teams:
+                team['_id'] = str(team['_id'])
+                teamsList.append(team)
+
+            if teamsList:
+                return jsonify({'teams': teamsList, 'success': True}), 200
+            else:
+                return jsonify({'error': 'Teams could not be retrieved or does not exist', 'success': False}), 500
+        except Exception as e:
+            return jsonify({'error': 'Teams could not be retrieved', 'success': False}), 500
