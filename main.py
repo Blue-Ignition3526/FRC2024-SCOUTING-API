@@ -131,6 +131,10 @@ def getAllRobots():
 def getAllTeams():
     return api.getAllTeams()
 
+@app.route('/teams/get-all-teams-simple/<teamAmount>', methods=['GET'])
+def getAllTeamsSimple(teamAmount):
+    return api.getAllTeamsSimple(int(teamAmount))
+
 if __name__ == '__main__':
     setup = Setup()
     if setup.checkSetup():

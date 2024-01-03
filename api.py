@@ -554,7 +554,7 @@ class Api:
         except Exception as e:
             return jsonify({'error': 'Robots could not be retrieved', 'success': False}), 500
 
-    # !TODO Change the function to be get completedMatches. Have the matches be sorted by timestamp in order to account for skipped matches. Also get the total amount of matches
+    # !TODO Change the function to be get completedMatches. Have the matches be sorted by timestamp in order to account for skipped matches.
     # https://www.thebluealliance.com/api/v3/event/2023mxmo/matches/simple
     def getRunningMatch(self):
         """
@@ -587,12 +587,44 @@ class Api:
         A function that returns all the teams
         :return: A JSON response that contains the teams or error code and the status code
         """
+        if not self.apiStatus:
+            return jsonify({'error': 'API is disabled', 'success': False}), 400
         try:
             teams = self.db.Teams.find({})
             teamsList = []
             for team in teams:
-                team['_id'] = str(team['_id'])
+                del team['_id']
                 teamsList.append(team)
+
+            if teamsList:
+                return jsonify({'teams': teamsList, 'success': True}), 200
+            else:
+                return jsonify({'error': 'Teams could not be retrieved or does not exist', 'success': False}), 500
+        except Exception as e:
+            return jsonify({'error': 'Teams could not be retrieved', 'success': False}), 500
+
+
+    def getAllTeamsSimple (self, limit: int):
+        """
+        A function that returns all the teams
+        :param limit: An int that contains the limit of teams to be returned
+        :return: A JSON response that contains the teams or error code and the status code
+        """
+        if not self.apiStatus:
+            return jsonify({'error': 'API is disabled', 'success': False}), 400
+        try:
+            if limit == 0:
+                limit = 10
+            teams = self.db.Teams.find({}).sort("team_value", -1).limit(limit)
+            teamsList = []
+            for team in teams:
+                teamsList.append(
+                    {
+                        'team_number': team['team_number'],
+                        'team_name': team['team_name'],
+                        'team_value': team['team_value']
+                    }
+                )
 
             if teamsList:
                 return jsonify({'teams': teamsList, 'success': True}), 200
