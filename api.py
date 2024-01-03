@@ -632,3 +632,4 @@ class Api:
                 return jsonify({'error': 'Teams could not be retrieved or does not exist', 'success': False}), 500
         except Exception as e:
             return jsonify({'error': 'Teams could not be retrieved', 'success': False}), 500
+
